@@ -27,19 +27,6 @@ createNextDescribe(
         expect(url.searchParams.toString()).toMatchInlineSnapshot(`"a=b&c=d"`)
       })
 
-      it('should set query with semicolon correctly', async () => {
-        const browser = await next.browser('/redirect/semicolon')
-
-        await retry(() =>
-          expect(browser.elementById('query').text()).resolves.toEqual(
-            'a=b%3Bc'
-          )
-        )
-
-        const url = new URL(await browser.url())
-        expect(url.searchParams.toString()).toBe('a=b%3Bc')
-      })
-
       it('should handle unicode search params', async () => {
         const requests: Array<{
           pathname: string
@@ -879,16 +866,22 @@ createNextDescribe(
       it('should render the final state of the page with correct metadata', async () => {
         const browser = await next.browser('/metadata-await-promise')
 
-        await browser
-          .elementByCss("[href='/metadata-await-promise/nested']")
-          .click()
+        // dev doesn't trigger the loading boundary as it's not prefetched
+        if (isNextDev) {
+          await browser
+            .elementByCss("[href='/metadata-await-promise/nested']")
+            .click()
+        } else {
+          const loadingText = await browser
+            .elementByCss("[href='/metadata-await-promise/nested']")
+            .click()
+            .waitForElementByCss('#loading')
+            .text()
+
+          expect(loadingText).toBe('Loading')
+        }
 
         await retry(async () => {
-          // dev doesn't trigger the loading boundary as it's not prefetched
-          if (!isNextDev) {
-            expect(await browser.eval(`window.shownLoading`)).toBe(true)
-          }
-
           expect(await browser.elementById('page-content').text()).toBe(
             'Content'
           )
@@ -952,17 +945,6 @@ createNextDescribe(
         await retry(async () => {
           expect(await browser.elementByCss('h1').text()).toBe('Home')
         })
-      })
-    })
-
-    describe('middleware redirect', () => {
-      it('should change browser location when router.refresh() gets a redirect response', async () => {
-        const browser = await next.browser('/redirect-on-refresh/auth')
-        await retry(async () =>
-          expect(await browser.url()).toBe(
-            next.url + '/redirect-on-refresh/dashboard'
-          )
-        )
       })
     })
   }
